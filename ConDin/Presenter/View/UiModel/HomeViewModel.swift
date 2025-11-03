@@ -20,7 +20,14 @@ extension String {
 }
 
 class HomeViewModel: ObservableObject {
+    
     private var applicationRepository: ApplicationRepository = ApplicationRepository()
+    
+    private func currentMonth() -> String {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "MM/YYYY"
+        return dateFormatter.string(from: Date())
+    }
     
     @Published var state: HomeViewState = HomeViewState(isloading: true)
     
@@ -30,28 +37,39 @@ class HomeViewModel: ObservableObject {
         let data = try applicationRepository.loadContent() ?? []
         let expenses = calculateExpenses(from: data)
         let balance = calculateBalance(from: data)
-        
+        let month = currentMonth()
         DispatchQueue.main.async {
             self.state = HomeViewState(
                 statement: data,
-                month: "Setembro",
+                month: month,
                 expenses: expenses,
                 balance: balance,
                 isloading: false,
-                isError: false
+                isError: false,
+                isEmpty: data.isEmpty
             )
         }
+    }
+    
+    func openFilterModal() {
+        self.state.showFilterModal = true
+    }
+    
+    func filterDate(value: String) {
+        self.state.showFilterModal = false
+        self.state.month = value
     }
     
     func clearData() {
         applicationRepository.clearData()
         self.state = HomeViewState(
             statement: [],
-            month: "Setembro",
+            month: currentMonth(),
             expenses: [],
             balance: "R$ 0.00",
             isloading: false,
-            isError: false
+            isError: false,
+            isEmpty: true
         )
     }
     
@@ -61,7 +79,7 @@ class HomeViewModel: ObservableObject {
         let balance = calculateBalance(from: content)
         self.state = HomeViewState(
             statement: content,
-            month: "Setembro",
+            month: currentMonth(),
             expenses: expenses,
             balance: balance,
             isloading: false,

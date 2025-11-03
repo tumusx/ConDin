@@ -12,6 +12,13 @@ struct Balance: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            Text("Gasto do mês")
+                .font(.caption)
+                .foregroundColor(.red)
+            Text(balance)
+                .font(.headline)
+                .foregroundColor(.primary)
+            
             Text("Saldo atual")
                 .font(.caption)
                 .foregroundColor(.primary)

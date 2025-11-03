@@ -10,7 +10,7 @@ import SwiftUI
 struct Home: View {
     @StateObject private var homeViewModel: HomeViewModel
     @State private var showAddScreen: Bool = false
-
+    
     init() {
         _homeViewModel = StateObject(wrappedValue: HomeViewModel())
     }
@@ -29,6 +29,12 @@ struct Home: View {
                     .onTapGesture {
                         homeViewModel.clearData()
                     }
+                Image(systemName: "line.3.horizontal.decrease")
+                    .font(.title2)
+                    .padding(.horizontal, 30)
+                    .onTapGesture {
+                        homeViewModel.openFilterModal()
+                    }
                 Image(systemName: "plus")
                     .font(.title2)
                     .padding(.horizontal, 30)
@@ -36,34 +42,43 @@ struct Home: View {
                         showAddScreen = true
                     }
             }
-
-            Balance(balance: homeViewModel.state.balance)
-                .padding(.vertical, 20)
-            
-            ScrollView {
-                CustomCharts(
-                    expenses: homeViewModel.state.expenses,
-                    month: homeViewModel.state.month
-                )
-                TransactionView(statement: homeViewModel.state.statement)
-            }
-        }
-        .frame(maxHeight: .infinity, alignment: .topLeading)
-        .sheet(isPresented: $showAddScreen) {
-            AddExpenses(
-                expenses: { newStatement in
-                    Task {
-                        try? await homeViewModel.saveContent(content: newStatement)
-                    }
-                },
-                closeScreen: { value in
-                    showAddScreen = !value
+                Balance(balance: homeViewModel.state.balance)
+                    .padding(.vertical, 20)
+                
+                ScrollView {
+                    CustomCharts(
+                        expenses: homeViewModel.state.expenses,
+                        month: homeViewModel.state.month
+                    )
+                    TransactionView(statement: homeViewModel.state.statement)
                 }
-            )
-        }
-        .task {
-            try? await homeViewModel.fetchData()
-        }
+                .frame(maxHeight: .infinity, alignment: .topLeading)
+                .sheet(isPresented: $showAddScreen) {
+                    AddExpenses(
+                        expenses: { newStatement in
+                            Task {
+                                try? await homeViewModel.saveContent(content: newStatement)
+                            }
+                        },
+                        closeScreen: { value in
+                            showAddScreen = !value
+                        }
+                    )
+                }
+                .sheet(isPresented: $homeViewModel.state.showFilterModal) {
+                    FilterModal(
+                        selectedMonthYear: homeViewModel.state.month,
+                    ) { selectedValue in
+                        homeViewModel.filterDate(value: selectedValue)
+                    }
+                    .presentationDetents([.fraction(0.35)])
+                    .presentationDragIndicator(.visible)
+                    .padding(.horizontal, 20)
+                }
+                .task {
+                    try? await homeViewModel.fetchData()
+                }
+            }
     }
 }
 
