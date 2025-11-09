@@ -42,46 +42,52 @@ struct Home: View {
                         showAddScreen = true
                     }
             }
-                Balance(balance: homeViewModel.state.balance)
-                    .padding(.vertical, 20)
-                
-                ScrollView {
-                    CustomCharts(
-                        expenses: homeViewModel.state.expenses,
-                        month: homeViewModel.state.month
-                    )
-                    TransactionView(statement: homeViewModel.state.statement)
-                }
-                .frame(maxHeight: .infinity, alignment: .topLeading)
-                .sheet(isPresented: $showAddScreen) {
-                    AddExpenses(
-                        expenses: { newStatement in
-                            Task {
-                                try? await homeViewModel.saveContent(content: newStatement)
-                            }
-                        },
-                        closeScreen: { value in
-                            showAddScreen = !value
+            Balance(balance: homeViewModel.state.balance,
+                    actualBalance: $homeViewModel.state.actualBalance,
+                    onBalanceChange: { value in
+                homeViewModel.onBalanceChange(value: value)
+            })
+                .padding(.vertical, 20)
+            
+            ScrollView {
+                CustomCharts(
+                    expenses: homeViewModel.state.expenses,
+                    month: homeViewModel.state.month
+                )
+                TransactionView(statement: homeViewModel.state.statement)
+            }
+            .frame(maxHeight: .infinity, alignment: .topLeading)
+            .sheet(isPresented: $showAddScreen) {
+                AddExpenses(
+                    expenses: { newStatement in
+                        Task {
+                            try? await homeViewModel.saveContent(content: newStatement)
                         }
-                    )
-                }
-                .sheet(isPresented: $homeViewModel.state.showFilterModal) {
-                    FilterModal(
-                        selectedMonthYear: homeViewModel.state.month,
-                    ) { selectedValue in
-                        homeViewModel.filterDate(value: selectedValue)
+                    },
+                    closeScreen: { value in
+                        showAddScreen = !value
                     }
-                    .presentationDetents([.fraction(0.35)])
-                    .presentationDragIndicator(.visible)
-                    .padding(.horizontal, 20)
+                )
+            }
+            .sheet(isPresented: $homeViewModel.state.showFilterModal) {
+                FilterModal(
+                    selectedMonthYear: homeViewModel.state.month,
+                ) { selectedValue in
+                    homeViewModel.filterDate(value: selectedValue)
                 }
-                .task {
-                    try? await homeViewModel.fetchData()
+                .presentationDetents([.fraction(0.35)])
+                .presentationDragIndicator(.visible)
+                .padding(.horizontal, 20)
+            }
+            .onAppear {
+                Task {
+                    await homeViewModel.initData()
                 }
             }
+        }
     }
 }
-
+    
 #Preview {
     Home(preview: HomeViewModel.preview)
 }

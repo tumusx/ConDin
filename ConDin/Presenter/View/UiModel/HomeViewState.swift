@@ -10,6 +10,7 @@ struct HomeViewState {
     var month: String = ""
     var showFilterModal: Bool = false
     var expenses: [Expense] = []
+    var actualBalance: String = ""
     var balance: String = ""
     var isloading: Bool = false
     var isError: Bool = false

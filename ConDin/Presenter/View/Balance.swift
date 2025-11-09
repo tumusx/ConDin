@@ -6,11 +6,19 @@
 //
 
 import SwiftUI
-
 struct Balance: View {
     var balance: String
-    
+    @Binding var actualBalance: String
+    let onBalanceChange: ((String) -> Void)?
+
+    init(balance: String, actualBalance: Binding<String>, onBalanceChange: ((String) -> Void)? = nil) {
+        self.balance = balance
+        self._actualBalance = actualBalance
+        self.onBalanceChange = onBalanceChange
+    }
+
     var body: some View {
+        let actualBalanceFormatted = "R$ " + actualBalance
         VStack(alignment: .leading, spacing: 8) {
             Text("Gasto do mês")
                 .font(.caption)
@@ -18,15 +26,19 @@ struct Balance: View {
             Text(balance)
                 .font(.headline)
                 .foregroundColor(.primary)
-            
             Text("Saldo atual")
                 .font(.caption)
                 .foregroundColor(.primary)
-                .opacity(0.5)
-            Text(balance)
-                .font(.headline)
-                .foregroundColor(.primary)
-
+                .opacity(0.6)
+            
+            TextField("R$ 0,00", text: Binding(
+                get: { actualBalance },
+                set: {
+                    let clean = $0.replacingOccurrences(of: "R$ ", with: "")
+                    actualBalance = clean
+                    onBalanceChange?(clean)
+                }
+            ))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
@@ -39,6 +51,15 @@ struct Balance: View {
     }
 }
 
-#Preview {
-    Balance(balance: "R$ 1.000,00")
+struct Balance_Previews: PreviewProvider {
+    @State static var previewActualBalance: String = "123"
+
+    static var previews: some View {
+        Balance(
+            balance: "R$ 1.000,00",
+            actualBalance: $previewActualBalance,
+            onBalanceChange: { value in
+            }
+        )
+    }
 }

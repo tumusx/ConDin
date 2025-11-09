@@ -10,12 +10,11 @@ import SwiftUI
 extension String {
     /// Converte "R$ -120,00" para -120.0
     func currencyToDouble() -> Double {
-        let clean = self
-            .replacingOccurrences(of: "R$", with: "")
-            .replacingOccurrences(of: ".", with: "")
-            .replacingOccurrences(of: ",", with: ".")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return Double(clean) ?? 0.0
+        let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "pt_BR")
+        formatter.numberStyle = .decimal
+        let clean = self.replacingOccurrences(of: "R$ ", with: "")
+        return formatter.number(from: clean)?.doubleValue ?? 0
     }
 }
 
@@ -23,41 +22,56 @@ class HomeViewModel: ObservableObject {
     
     private var applicationRepository: ApplicationRepository = ApplicationRepository()
     
-    private func currentMonth() -> String {
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "MM/YYYY"
-        return dateFormatter.string(from: Date())
-    }
-    
     @Published var state: HomeViewState = HomeViewState(isloading: true)
     
-    // MARK: - Public Methods
-    
-    func fetchData() async throws {
-        let data = try applicationRepository.loadContent() ?? []
-        let expenses = calculateExpenses(from: data)
-        let balance = calculateBalance(from: data)
-        let month = currentMonth()
-        DispatchQueue.main.async {
-            self.state = HomeViewState(
-                statement: data,
-                month: month,
-                expenses: expenses,
-                balance: balance,
-                isloading: false,
-                isError: false,
-                isEmpty: data.isEmpty
-            )
-        }
+    internal func onBalanceChange(value: String) {
+        self.state.actualBalance = value
+        applicationRepository.saveActualBalance(value: value)
     }
+    
+    // MARK: - Public Methods
     
     func openFilterModal() {
         self.state.showFilterModal = true
     }
     
+    private func fetchAllContent(month: String = "", isOpenFilterModal: Bool = false) async throws -> HomeViewState{
+        let data = try applicationRepository.loadContent(monthYear: month) ?? []
+        let expenses = calculateExpenses(from: data)
+        let resumeBalance = calculateActualBalance(from: data, actualBalance: applicationRepository.loadActualBalance())
+        let coust = calculateCoust(from: data)
+        return HomeViewState(
+            statement: data,
+            month: month,
+            expenses: expenses,
+            actualBalance: resumeBalance,
+            balance: coust,
+            isloading: false,
+            isError: false,
+            isEmpty: data.isEmpty
+        )
+    }
+    
+    @MainActor
+    func initData() async {
+        do {
+            let state = try await fetchAllContent(month: currentMonth())
+            self.state = state
+        } catch {
+            print("Erro ao carregar dados: \(error)")
+            self.state.isError = true
+        }
+    }
+
     func filterDate(value: String) {
         self.state.showFilterModal = false
         self.state.month = value
+        Task {
+            let value = try await fetchAllContent(month: value)
+            DispatchSerialQueue.main.sync {
+                self.state = value
+            }
+        }
     }
     
     func clearData() {
@@ -66,6 +80,7 @@ class HomeViewModel: ObservableObject {
             statement: [],
             month: currentMonth(),
             expenses: [],
+            actualBalance: "",
             balance: "R$ 0.00",
             isloading: false,
             isError: false,
@@ -76,15 +91,19 @@ class HomeViewModel: ObservableObject {
     func saveContent(content: Statement) async throws {
         let content = try applicationRepository.saveContent(content: content) ?? []
         let expenses = calculateExpenses(from: content)
-        let balance = calculateBalance(from: content)
-        self.state = HomeViewState(
-            statement: content,
-            month: currentMonth(),
-            expenses: expenses,
-            balance: balance,
-            isloading: false,
-            isError: false
-        )
+        let resumeBalance = calculateActualBalance(from: content, actualBalance: applicationRepository.loadActualBalance())
+        let coust = calculateCoust(from: content)
+        DispatchSerialQueue.main.sync {
+            self.state = HomeViewState(
+                statement: content,
+                month: currentMonth(),
+                expenses: expenses,
+                actualBalance: resumeBalance,
+                balance: coust,
+                isloading: false,
+                isError: false
+            )
+        }
     }
     
     // MARK: - Private Helpers
@@ -96,7 +115,6 @@ class HomeViewModel: ObservableObject {
             grouped[s.category, default: 0] += value
         }
         
-        // Defina cores fixas por categoria
         let categoryColors: [String: Color] = [
             "Alimentação": .blue,
             "Transporte": .teal,
@@ -118,9 +136,19 @@ class HomeViewModel: ObservableObject {
         }
     }
     
-    private func calculateBalance(from statements: [Statement]) -> String {
+    private func calculateCoust(from statements: [Statement]) -> String {
         let total = statements.map { $0.value.currencyToDouble() }.reduce(0, +)
         return "R$ \(String(format: "%.2f", total))"
+    }
+    
+    private func calculateActualBalance(from statements: [Statement], actualBalance: String) -> String {
+        let initialBalance = actualBalance.currencyToDouble()
+        
+        let totalStatements = statements.map { $0.value.currencyToDouble() }.reduce(0, +)
+        
+        let finalBalance = initialBalance + totalStatements
+        
+        return "R$ \(String(format: "%.2f", finalBalance))"
     }
 }
 
@@ -142,7 +170,8 @@ extension HomeViewModel {
             statement: fakeStatements,
             month: "Setembro",
             expenses: fakeViewModel.calculateExpenses(from: fakeStatements),
-            balance: fakeViewModel.calculateBalance(from: fakeStatements),
+            actualBalance: fakeViewModel.calculateActualBalance(from: fakeStatements, actualBalance: "10"),
+            balance: fakeViewModel.calculateCoust(from: fakeStatements),
             isloading: false,
             isError: false
         )
